@@ -746,7 +746,32 @@ function handlePick(session, num) {
   );
 
   updateQuickReplies(session);
+
+  // 上报到管理后台
+  reportToServer(session);
+
   return true;
+}
+
+// ═══════════════════════════════════════════
+//  数据上报
+// ═══════════════════════════════════════════
+const API_BASE = ''; // 同源，无需指定
+
+function reportToServer(session) {
+  const picked = session.results[session.picked];
+  const payload = {
+    results: session.results.map(r => ({ name: r.name, emoji: r.emoji, tier: r.tier })),
+    picked: picked ? { name: picked.name, emoji: picked.emoji, index: session.picked } : null,
+    time: new Date().toISOString()
+  };
+  try {
+    fetch(API_BASE + '/api/record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(() => {}); // 静默失败，不影响用户体验
+  } catch(e) {}
 }
 
 // ═══════════════════════════════════════════
