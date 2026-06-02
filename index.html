@@ -756,22 +756,29 @@ function handlePick(session, num) {
 // ═══════════════════════════════════════════
 //  数据上报
 // ═══════════════════════════════════════════
-const API_BASE = ''; // 同源，无需指定
+const DATA_URL = 'https://jsonblob.com/api/jsonBlob/019e88b3-a31d-7d24-b733-8f7bbf2be599';
 
-function reportToServer(session) {
+async function reportToServer(session) {
   const picked = session.results[session.picked];
-  const payload = {
+  const record = {
     results: session.results.map(r => ({ name: r.name, emoji: r.emoji, tier: r.tier })),
     picked: picked ? { name: picked.name, emoji: picked.emoji, index: session.picked } : null,
     time: new Date().toISOString()
   };
   try {
-    fetch(API_BASE + '/api/record', {
-      method: 'POST',
+    // 读取当前数据
+    const getRes = await fetch(DATA_URL);
+    if (!getRes.ok) return;
+    const data = await getRes.json();
+    data.records.push(record);
+    if (data.records.length > 500) data.records = data.records.slice(-500);
+    // 写回
+    await fetch(DATA_URL, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).catch(() => {}); // 静默失败，不影响用户体验
-  } catch(e) {}
+      body: JSON.stringify(data)
+    });
+  } catch(e) { /* 静默失败 */ }
 }
 
 // ═══════════════════════════════════════════
