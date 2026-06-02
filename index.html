@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🎉 抽奖机</title>
+<style>
+  :root {
+    --bg: #fdf6f0;
+    --bubble-bot: #ffffff;
+    --bubble-user: #ffd166;
+    --accent: #ff6b6b;
+    --accent2: #7c5cfc;
+    --text: #333;
+    --sub: #888;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 30%, #e8c5ff 70%, #c2e9fb 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* ──────────────── 主容器 ──────────────── */
+  .app-container {
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    max-height: 860px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255,255,255,0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 0;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    position: relative;
+  }
+  @media (min-width: 481px) {
+    .app-container {
+      border-radius: 24px;
+      height: 92vh;
+      margin: 2vh 0;
+    }
+  }
+
+  /* ──────────────── 头部 ──────────────── */
+  .header {
+    background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+    padding: 14px 20px;
+    text-align: center;
+    color: #fff;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+    animation: headerShine 3s ease-in-out infinite;
+  }
+  @keyframes headerShine {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(5%, 3%); }
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    position: relative;
+    z-index: 1;
+    letter-spacing: 1px;
+  }
+  .header .subtitle {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 2px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ──────────────── 聊天区 ──────────────── */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+
+  /* 消息气泡 */
+  .msg {
+    display: flex;
+    gap: 8px;
+    animation: msgPop 0.35s cubic-bezier(0.21, 1.32, 0.5, 1);
+    max-width: 88%;
+  }
+  @keyframes msgPop {
+    0% { opacity: 0; transform: translateY(16px) scale(0.92); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .msg.bot { align-self: flex-start; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+  .msg .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    align-self: flex-end;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .msg.bot .avatar { background: linear-gradient(135deg, #a18cd1, #fbc2eb); }
+  .msg.user .avatar { background: linear-gradient(135deg, #ffd166, #ff8e53); }
+
+  .msg .bubble {
+    padding: 11px 15px;
+    border-radius: 18px;
+    font-size: 15px;
+    line-height: 1.55;
+    word-break: break-word;
+    position: relative;
+  }
+  .msg.bot .bubble {
+    background: var(--bubble-bot);
+    border-bottom-left-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    color: #444;
+  }
+  .msg.user .bubble {
+    background: var(--bubble-user);
+    border-bottom-right-radius: 6px;
+    box-shadow: 0 2px 10px rgba(255,141,50,0.18);
+    color: #5a3e00;
+  }
+
+  /* 抽奖结果气泡 - 特殊样式 */
+  .msg.lottery-result {
+    align-self: center;
+    max-width: 92%;
+  }
+  .msg.lottery-result .bubble {
+    background: linear-gradient(135deg, #fff9c4, #fff3e0);
+    border: 2px dashed #ffb74d;
+    border-radius: 20px;
+    text-align: center;
+    padding: 16px 24px;
+    font-size: 18px;
+    font-weight: 700;
+    animation: lotteryReveal 0.6s cubic-bezier(0.21, 1.32, 0.5, 1);
+  }
+  @keyframes lotteryReveal {
+    0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+    60% { transform: scale(1.08) rotate(2deg); }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  .msg.lottery-result .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 6px;
+  }
+  .badge.win { background: #fff3cd; color: #e67e00; }
+  .badge.lose { background: #f0f0f0; color: #888; }
+
+  /* ──────────────── 老虎机动画 ──────────────── */
+  .slot-machine {
+    align-self: center;
+    background: linear-gradient(135deg, #2d2d3f, #1a1a2e);
+    border-radius: 20px;
+    padding: 6px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2), inset 0 0 0 3px #ffd166;
+    margin: 4px 0;
+    max-width: 92%;
+    animation: msgPop 0.35s cubic-bezier(0.21, 1.32, 0.5, 1);
+  }
+  .slot-window {
+    background: #fffef5;
+    border-radius: 14px;
+    padding: 14px 28px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    min-width: 180px;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .slot-window .slot-text {
+    transition: none;
+  }
+  .slot-window.spinning .slot-text {
+    animation: slotBlur 0.08s steps(1) infinite;
+  }
+  @keyframes slotBlur {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ──────────────── 输入区域 ──────────────── */
+  .input-area {
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    flex-shrink: 0;
+    border-top: 1px solid rgba(0,0,0,0.05);
+  }
+  .quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .quick-replies button {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1.5px solid #e0d0f0;
+    background: #fff;
+    color: #7c5cfc;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .quick-replies button:active {
+    transform: scale(0.95);
+    background: #f3edff;
+  }
+  .quick-replies button.highlight {
+    background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+    color: #fff;
+    border-color: transparent;
+    font-weight: 600;
+    animation: pulseBtn 2s ease-in-out infinite;
+  }
+  @keyframes pulseBtn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(255,107,107,0); }
+  }
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .input-row input {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 24px;
+    border: 2px solid #e8e0f0;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+    background: #fff;
+  }
+  .input-row input:focus {
+    border-color: #a18cd1;
+  }
+  .input-row .send-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #7c5cfc, #a18cd1);
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s;
+    box-shadow: 0 4px 14px rgba(124,92,252,0.3);
+  }
+  .input-row .send-btn:active {
+    transform: scale(0.9);
+  }
+  .input-row .send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ──────────────── 撤花画布 ──────────────── */
+  #confetti-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ──────────────── 二维码模态框 ──────────────── */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.25s;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px;
+    text-align: center;
+    max-width: 320px;
+    width: 90%;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+  }
+  .modal h3 { margin-bottom: 16px; color: #333; }
+  .modal img { border-radius: 12px; max-width: 200px; }
+  .modal .close-btn {
+    margin-top: 14px;
+    padding: 8px 28px;
+    border-radius: 20px;
+    border: none;
+    background: #eee;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  /* ──────────────── 响应式微调 ──────────────── */
+  @media (max-width: 380px) {
+    .msg { max-width: 92%; }
+    .msg .bubble { font-size: 14px; padding: 9px 12px; }
+    .header h1 { font-size: 19px; }
+    .quick-replies button { font-size: 12px; padding: 6px 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- 头部 -->
+  <div class="header">
+    <h1>🎪 抽奖机 <span style="font-size:10px;opacity:0.6;">v2.0</span>
+      <span onclick="localStorage.clear();location.reload();" style="font-size:11px;cursor:pointer;margin-left:8px;opacity:0.5;" title="清除数据重新开始">🔄</span>
+    </h1>
+    <div class="subtitle">输入「抽奖」试试手气吧～</div>
+  </div>
+
+  <!-- 聊天区 -->
+  <div class="chat-area" id="chatArea"></div>
+
+  <!-- 输入区 -->
+  <div class="input-area">
+    <div class="quick-replies" id="quickReplies">
+      <button onclick="sendQuick('抽奖')" class="highlight">🎰 开始抽奖</button>
+      <button onclick="sendQuick('抽奖规则')">📋 抽奖规则</button>
+      <button onclick="sendQuick('有什么奖品')">🎁 有什么奖品</button>
+    </div>
+    <div class="input-row">
+      <input type="text" id="msgInput" placeholder="输入消息..." maxlength="100" autocomplete="off">
+      <button class="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- 撒花 -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- 二维码模态框（隐藏） -->
+<div class="modal-overlay" id="qrModal" style="display:none;" onclick="closeQR(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>📱 扫码打开抽奖机</h3>
+    <img id="qrImage" src="" alt="QR Code" style="width:200px;height:200px;">
+    <p style="font-size:13px;color:#888;margin:8px 0;">发给同学一起玩～</p>
+    <button class="close-btn" onclick="document.getElementById('qrModal').style.display='none'">关闭</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  奖品配置（新规则）
+// ═══════════════════════════════════════════
+const PRIZES = [
+  { name: '可乐一听',           emoji: '🥤', weight: 30,  tier: 'win',  desc: '私信联系，<b>免费</b>领取' },
+  { name: '3元兑换小礼物券',    emoji: '🎟️', weight: 100, tier: 'coupon', desc: '凭券<b>付3元</b>换一个小玩具/礼物' },
+  { name: '小玩具直接送',       emoji: '🧸', weight: 1,   tier: 'rare',  desc: '私信联系，<b>免费</b>领取小玩具' },
+  { name: '谢谢参与',           emoji: '🙏', weight: 69,  tier: 'lose',  desc: '无奖品' },
+];
+const TOTAL_DRAWS = 3; // 每人每天抽3次
+
+// ═══════════════════════════════════════════
+//  根据权重随机选取
+// ═══════════════════════════════════════════
+function drawPrize() {
+  const total = PRIZES.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  for (const p of PRIZES) {
+    r -= p.weight;
+    if (r <= 0) return p;
+  }
+  return PRIZES[PRIZES.length - 1];
+}
+
+// ═══════════════════════════════════════════
+//  会话状态管理 (localStorage)
+// ═══════════════════════════════════════════
+function getTodayKey() {
+  const d = new Date();
+  return `lottery_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function getSession() {
+  const key = getTodayKey();
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // 必须是对象且包含 results 数组（兼容旧版存储的数字格式）
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.results)) {
+        return parsed;
+      }
+    }
+  } catch(e) {}
+  return { results: [], picked: null };
+}
+function saveSession(session) {
+  try {
+    const key = getTodayKey();
+    localStorage.setItem(key, JSON.stringify(session));
+  } catch(e) {
+    console.error('saveSession failed:', e);
+  }
+}
+function resetSession() {
+  const key = getTodayKey();
+  localStorage.setItem(key, JSON.stringify({ results: [], picked: null }));
+}
+
+// ═══════════════════════════════════════════
+//  DOM 引用
+// ═══════════════════════════════════════════
+const chatArea = document.getElementById('chatArea');
+const msgInput = document.getElementById('msgInput');
+const sendBtn = document.querySelector('.send-btn');
+const quickRepliesDiv = document.getElementById('quickReplies');
+const confettiCanvas = document.getElementById('confetti-canvas');
+const ctx = confettiCanvas.getContext('2d');
+
+// ═══════════════════════════════════════════
+//  聊天气泡渲染
+// ═══════════════════════════════════════════
+function addBotMsg(html, cls = '') {
+  const div = document.createElement('div');
+  div.className = `msg bot ${cls}`;
+  div.innerHTML = `
+    <div class="avatar">🎪</div>
+    <div class="bubble">${html}</div>
+  `;
+  chatArea.appendChild(div);
+  scrollDown();
+}
+
+function addUserMsg(text) {
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `
+    <div class="avatar">😎</div>
+    <div class="bubble">${escapeHtml(text)}</div>
+  `;
+  chatArea.appendChild(div);
+  scrollDown();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function scrollDown() {
+  requestAnimationFrame(() => {
+    chatArea.scrollTop = chatArea.scrollHeight;
+  });
+}
+
+// ═══════════════════════════════════════════
+//  老虎机动画
+// ═══════════════════════════════════════════
+function playSlotAnimation(prize, callback) {
+  const slotDiv = document.createElement('div');
+  slotDiv.className = 'slot-machine';
+  slotDiv.innerHTML = `
+    <div class="slot-window" id="slotWindow">
+      <span class="slot-text">🎰</span>
+    </div>
+  `;
+  chatArea.appendChild(slotDiv);
+  scrollDown();
+
+  const windowEl = slotDiv.querySelector('#slotWindow');
+  const textEl = windowEl.querySelector('.slot-text');
+
+  const names = [...PRIZES.map(p => p.emoji + ' ' + p.name), ...PRIZES.map(p => p.emoji + ' ' + p.name)];
+  let idx = 0;
+  const totalFrames = 28;
+  let frame = 0;
+  let interval = 60;
+
+  function spin() {
+    frame++;
+    idx = (idx + 1) % names.length;
+    textEl.textContent = names[idx];
+
+    if      (frame < 8)  interval = 50;
+    else if (frame < 13) interval = 90;
+    else if (frame < 17) interval = 150;
+    else if (frame < 21) interval = 230;
+    else if (frame < 25) interval = 350;
+    else                 interval = 500;
+
+    if (frame < totalFrames) {
+      setTimeout(spin, interval);
+    } else {
+      textEl.textContent = prize.emoji + ' ' + prize.name;
+      windowEl.classList.remove('spinning');
+      windowEl.style.background = prize.tier === 'lose' ? '#f5f5f5' : '#fffef5';
+      setTimeout(() => {
+        slotDiv.remove();
+        callback();
+      }, 600);
+    }
+  }
+
+  windowEl.classList.add('spinning');
+  spin();
+}
+
+// ═══════════════════════════════════════════
+//  撒花特效
+// ═══════════════════════════════════════════
+let confettiParticles = [];
+let confettiRunning = false;
+
+function launchConfetti() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  confettiCanvas.width = w;
+  confettiCanvas.height = h;
+
+  const colors = ['#ff6b6b','#ffd166','#06d6a0','#118ab2','#ef476f','#ff8e53','#7c5cfc','#f78c6b'];
+  confettiParticles = [];
+
+  for (let i = 0; i < 120; i++) {
+    confettiParticles.push({
+      x: Math.random() * w,
+      y: Math.random() * h * -0.6,
+      w: Math.random() * 10 + 4,
+      h: Math.random() * 6 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vy: Math.random() * 3 + 2,
+      vx: (Math.random() - 0.5) * 3,
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 8,
+      opacity: 1,
+    });
+  }
+
+  if (!confettiRunning) {
+    confettiRunning = true;
+    animateConfetti();
+  }
+}
+
+function animateConfetti() {
+  if (confettiParticles.length === 0) {
+    confettiRunning = false;
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    return;
+  }
+
+  ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  const h = window.innerHeight;
+
+  confettiParticles = confettiParticles.filter(p => {
+    p.y += p.vy;
+    p.x += p.vx;
+    p.rotation += p.rotSpeed;
+    p.opacity -= 0.003;
+    if (p.y > h + 20 || p.opacity <= 0) return false;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate((p.rotation * Math.PI) / 180);
+    ctx.globalAlpha = Math.max(0, p.opacity);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+    return true;
+  });
+
+  if (confettiParticles.length > 0) {
+    requestAnimationFrame(animateConfetti);
+  } else {
+    confettiRunning = false;
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  更新快捷按钮
+// ═══════════════════════════════════════════
+function updateQuickReplies(session) {
+  const drawn = session.results.length;
+  const picked = session.picked;
+  let html = '';
+
+  if (picked !== null) {
+    // 已选择 → 展示规则和记录
+    html = `
+      <button onclick="sendQuick('抽奖规则')">📋 抽奖规则</button>
+      <button onclick="sendQuick('有什么奖品')">🎁 有什么奖品</button>
+      <button onclick="sendQuick('我的记录')">📜 我的记录</button>
+    `;
+  } else if (drawn === TOTAL_DRAWS) {
+    // 3次抽完，等待选择
+    html = `
+      <button onclick="sendQuick('1')" class="highlight">1️⃣ 选第1个</button>
+      <button onclick="sendQuick('2')" class="highlight">2️⃣ 选第2个</button>
+      <button onclick="sendQuick('3')" class="highlight">3️⃣ 选第3个</button>
+    `;
+  } else if (drawn > 0) {
+    // 进行中
+    html = `
+      <button onclick="sendQuick('抽奖')" class="highlight">🎰 继续抽奖（${drawn}/${TOTAL_DRAWS}）</button>
+      <button onclick="sendQuick('抽奖规则')">📋 抽奖规则</button>
+      <button onclick="sendQuick('有什么奖品')">🎁 有什么奖品</button>
+    `;
+  } else {
+    // 还没抽
+    html = `
+      <button onclick="sendQuick('抽奖')" class="highlight">🎰 开始抽奖</button>
+      <button onclick="sendQuick('抽奖规则')">📋 抽奖规则</button>
+      <button onclick="sendQuick('有什么奖品')">🎁 有什么奖品</button>
+    `;
+  }
+
+  quickRepliesDiv.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+//  聊天回复逻辑
+// ═══════════════════════════════════════════
+function getBotReply(text) {
+  const t = text.trim().toLowerCase();
+
+  const rules = [
+    { kw: ['你好','嗨','hi','hello','在吗','在么'], reply: '嗨嗨！👋 我在呢～想抽奖就输入「抽奖」试试手气呀！' },
+    { kw: ['奖品','有什么','啥','什么奖'], reply: `🎁 <b>奖品池：</b><br>🎟️ <b>3元兑换小礼物券</b> — 50%（付3元换小玩具）<br>🙏 <b>谢谢参与</b> — 35%<br>🥤 <b>可乐一听</b> — 15%（免费领）<br>🧸 <b>小玩具直接送</b> — 0.5%（超稀有！免费领）<br><br>每天抽 <b>${TOTAL_DRAWS}</b> 次，选 <b>1</b> 个最满意的领取！` },
+    { kw: ['规则','怎么玩','玩法'], reply: `📋 <b>抽奖规则：</b><br>1️⃣ 输入「<b>抽奖</b>」开始<br>2️⃣ 每天抽 <b>${TOTAL_DRAWS}</b> 次，每次概率独立<br>3️⃣ 从 ${TOTAL_DRAWS} 个结果中 <b>选 1 个</b> 领取<br>4️⃣ 选中后<b>私信</b>出示截图兑奖<br><br>💡 小玩具只有 <b>1%</b> 概率，欧皇就是你！` },
+    { kw: ['谢谢','感谢','3q','thank'], reply: '不客气呀！😊 中了记得来找我兑奖～' },
+    { kw: ['哈哈','嘿嘿','嘻嘻','hh','xixi'], reply: '嘿嘿嘿 😆 笑啥呢这么开心～来抽个奖？' },
+    { kw: ['哭','倒霉','运气差','非酋'], reply: '摸摸头 🥺 还有机会！3次抽完挑最好的那个！' },
+  ];
+
+  for (const rule of rules) {
+    if (rule.kw.some(k => t.includes(k))) {
+      return rule.reply;
+    }
+  }
+
+  const defaults = [
+    '哈哈哈有道理！👍 要不要抽个奖试试手气？',
+    '嗯嗯收到～🫡 输入「抽奖」来玩呀！',
+    '有意思有意思 😆 来抽一发不？',
+    '🤔 你说的好有道理…不过我更想知道你今天手气咋样，抽个奖？',
+    '懂了懂了！👌 顺便抽个奖庆祝一下？',
+  ];
+  return defaults[Math.floor(Math.random() * defaults.length)];
+}
+
+// ═══════════════════════════════════════════
+//  展示3次抽奖总结 & 提示选择
+// ═══════════════════════════════════════════
+function showDrawSummary(session) {
+  const lines = session.results.map((p, i) => {
+    const icon = p.tier === 'rare' ? '🌟' : p.tier === 'win' ? '🎉' : p.tier === 'coupon' ? '🎫' : '';
+    return `${i + 1}. ${p.emoji} <b>${p.name}</b> ${icon}`;
+  }).join('<br>');
+
+  addBotMsg(
+    `🎉 <b>你的 ${TOTAL_DRAWS} 次抽奖结果：</b><br><br>${lines}<br><br>请回复 <b>1</b>、<b>2</b> 或 <b>3</b> 选择你要领取的奖品～<br><br><span style="font-size:12px;color:#888;">（选最满意的那个！选中后私信出示截图领奖）</span>`,
+    'lottery-result'
+  );
+  updateQuickReplies(session);
+}
+
+// ═══════════════════════════════════════════
+//  处理选择奖品
+// ═══════════════════════════════════════════
+function handlePick(session, num) {
+  const idx = num - 1;
+  if (idx < 0 || idx >= session.results.length) return false;
+
+  const picked = session.results[idx];
+  session.picked = idx;
+  saveSession(session);
+
+  const desc = picked.desc;
+  let extra = '';
+  if (picked.tier === 'rare') {
+    launchConfetti();
+    extra = '<br><br>🌟 <b>天选之子！！！</b> 1%的概率都被你抽到了！';
+  } else if (picked.tier === 'win') {
+    launchConfetti();
+    extra = '<br><br>🎉 恭喜中奖！';
+  } else if (picked.tier === 'coupon') {
+    extra = '<br><br>🎫 凭券来换小礼物哦～';
+  } else {
+    extra = '<br><br>😅 没关系，至少你参与了！明天再来试试～';
+  }
+
+  addBotMsg(
+    `你选择了 <b>第 ${num} 个</b>：${picked.emoji} <b>${picked.name}</b><br><br>📱 <b>${desc}</b>${extra}<br><br>🔔 <b>请私信出示截图领取奖品！</b>`,
+    'lottery-result'
+  );
+
+  updateQuickReplies(session);
+  return true;
+}
+
+// ═══════════════════════════════════════════
+//  发送消息主逻辑
+// ═══════════════════════════════════════════
+let isDrawing = false;
+
+function sendMessage(text) {
+  if (isDrawing) return;
+
+  const msg = text || msgInput.value.trim();
+  if (!msg) return;
+
+  addUserMsg(msg);
+  msgInput.value = '';
+  msgInput.focus();
+
+  const session = getSession();
+
+  // ── 选择奖品（仅当3次抽完且未选择时响应数字）──
+  if (session.results.length === TOTAL_DRAWS && session.picked === null && /^[1-3]$/.test(msg)) {
+    handlePick(session, parseInt(msg));
+    return;
+  }
+
+  // ── 信息查询（规则/奖品等）──
+  const isInfoQuery = /规则|怎么玩|玩法|奖品|有什么|奖励/.test(msg);
+  if (isInfoQuery) {
+    const reply = getBotReply(msg);
+    if (reply) {
+      setTimeout(() => addBotMsg(reply), 400 + Math.random() * 600);
+    }
+    return;
+  }
+
+  // ── 记录查询 ──
+  if (msg.includes('记录') || msg.includes('我中了') || msg.includes('历史')) {
+    if (session.picked !== null) {
+      const picked = session.results[session.picked];
+      const lines = session.results.map((p, i) => {
+        const mark = i === session.picked ? ' ✅ 已选' : '';
+        return `${i + 1}. ${p.emoji} ${p.name}${mark}`;
+      }).join('<br>');
+      addBotMsg(`📜 <b>今天的抽奖记录：</b><br><br>${lines}<br><br>已领取：${picked.emoji} <b>${picked.name}</b><br>🔔 记得私信兑奖哦～`);
+    } else if (session.results.length > 0) {
+      const lines = session.results.map((p, i) => `${i + 1}. ${p.emoji} ${p.name}`).join('<br>');
+      const remain = TOTAL_DRAWS - session.results.length;
+      addBotMsg(`📜 <b>当前抽奖记录：</b><br><br>${lines}<br><br>还剩 <b>${remain}</b> 次抽奖机会～`);
+    } else {
+      addBotMsg('你还没抽过奖呢！😯 输入「<b>抽奖</b>」来试试手气吧～');
+    }
+    return;
+  }
+
+  // ── 抽奖 ──
+  if (msg.includes('抽奖')) {
+    // 今天已经抽完3次
+    if (session.results.length >= TOTAL_DRAWS) {
+      if (session.picked !== null) {
+        addBotMsg(`今天已经抽完啦～你选了：${session.results[session.picked].emoji} <b>${session.results[session.picked].name}</b><br><br>明天再来试试手气！🎰`);
+      } else {
+        // 抽完了但还没选
+        showDrawSummary(session);
+      }
+      return;
+    }
+
+    // 执行一次抽奖
+    isDrawing = true;
+    sendBtn.disabled = true;
+    let prize = drawPrize();
+    // 第3次时：①保底1个谢谢参与 ②避免3个全一样
+    if (session.results.length === 2) {
+      const hasXiexie = session.results.some(r => r.name === '谢谢参与');
+      const bothSame = session.results[0].name === session.results[1].name;
+      if (!hasXiexie) {
+        // 前2次都没有谢谢参与 → 强制给
+        prize = PRIZES.find(p => p.name === '谢谢参与');
+      } else if (bothSame && session.results[0].name === '谢谢参与') {
+        // 前2次都是谢谢参与 → 换一个
+        let retries = 0;
+        while (prize.name === '谢谢参与' && retries < 20) {
+          prize = drawPrize();
+          retries++;
+        }
+      }
+    }
+    session.results.push(prize);
+    saveSession(session);
+
+    const drawNum = session.results.length;
+
+    playSlotAnimation(prize, () => {
+      if (drawNum < TOTAL_DRAWS) {
+        addBotMsg(
+          `🎰 <b>第 ${drawNum}/${TOTAL_DRAWS} 次抽奖：</b>${prize.emoji} <b>${prize.name}</b><br><br>还剩 <b>${TOTAL_DRAWS - drawNum}</b> 次，输入「抽奖」继续～`,
+          prize.tier !== 'lose' ? 'lottery-result' : ''
+        );
+        if (prize.tier !== 'lose') launchConfetti();
+      } else {
+        addBotMsg(
+          `🎰 <b>第 ${drawNum}/${TOTAL_DRAWS} 次抽奖：</b>${prize.emoji} <b>${prize.name}</b>`,
+          prize.tier !== 'lose' ? 'lottery-result' : ''
+        );
+        if (prize.tier !== 'lose') launchConfetti();
+        setTimeout(() => showDrawSummary(session), 600);
+      }
+
+      isDrawing = false;
+      sendBtn.disabled = false;
+      updateQuickReplies(getSession());
+    });
+    return;
+  }
+
+  // ── 普通聊天 ──
+  const reply = getBotReply(msg);
+  if (reply) {
+    setTimeout(() => addBotMsg(reply), 400 + Math.random() * 600);
+  }
+}
+
+function sendQuick(text) {
+  try {
+    sendMessage(text);
+  } catch(e) {
+    addBotMsg('⚠️ <b>出错啦：</b><br><span style="color:red;font-size:12px;">' + escapeHtml(e.message || String(e)) + '</span><br><span style="color:#aaa;font-size:10px;">' + escapeHtml(e.stack || '') + '</span>');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  键盘事件
+// ═══════════════════════════════════════════
+msgInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// ═══════════════════════════════════════════
+//  窗口大小改变时更新画布
+// ═══════════════════════════════════════════
+window.addEventListener('resize', () => {
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+});
+
+// ═══════════════════════════════════════════
+//  二维码模态框
+// ═══════════════════════════════════════════
+function showQR() {
+  const url = window.location.href;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+  document.getElementById('qrImage').src = qrUrl;
+  document.getElementById('qrModal').style.display = 'flex';
+}
+function closeQR(e) {
+  if (e.target === e.currentTarget) {
+    document.getElementById('qrModal').style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════
+//  初始化
+// ═══════════════════════════════════════════
+function init() {
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+
+  const session = getSession();
+  let greeting;
+
+  if (session.picked !== null) {
+    // 今天已完成
+    const picked = session.results[session.picked];
+    greeting = `👋 欢迎回来！<br><br>你今天选了：${picked.emoji} <b>${picked.name}</b><br>🔔 记得<b>私信</b>出示截图领奖哦～<br><br>明天再来试试手气！🎰`;
+  } else if (session.results.length === TOTAL_DRAWS) {
+    // 抽完了还没选
+    greeting = `👋 欢迎回来！<br><br>你已经抽完 <b>${TOTAL_DRAWS}</b> 次啦～<br>快从下面选一个领取吧！`;
+  } else if (session.results.length > 0) {
+    // 进行中
+    const remain = TOTAL_DRAWS - session.results.length;
+    greeting = `👋 欢迎回来！<br><br>你已经抽了 <b>${session.results.length}</b> 次，还剩 <b>${remain}</b> 次～<br>输入「<b>抽奖</b>」继续！`;
+  } else {
+    // 全新的一天
+    greeting = `嗨！👋 欢迎来到 <b>抽奖机</b>～<br><br>🥤 可乐一听 | 🎟️ 3元券换小礼物 | 🧸 小玩具直接送<br>🎰 每天抽 <b>${TOTAL_DRAWS}</b> 次，选 <b>1</b> 个最喜欢的领取！<br><br>输入「<b>抽奖</b>」开始吧～`;
+  }
+
+  addBotMsg(greeting);
+
+  // 如果3次抽完还没选，弹出选择提示
+  if (session.results.length === TOTAL_DRAWS && session.picked === null) {
+    setTimeout(() => showDrawSummary(session), 500);
+  } else {
+    updateQuickReplies(session);
+  }
+
+  // 分享按钮
+  setTimeout(() => {
+    const footer = document.createElement('div');
+    footer.style.cssText = 'text-align:center;padding:10px 0;opacity:0.5;font-size:12px;';
+    footer.innerHTML = `<span style="cursor:pointer;text-decoration:underline;" onclick="showQR()">📱 扫码分享给朋友</span>`;
+    chatArea.appendChild(footer);
+  }, 1000);
+}
+
+init();
+</script>
+
+</body>
+</html>
